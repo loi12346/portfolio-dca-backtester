@@ -10,6 +10,12 @@ Lightweight upload -> simulate -> visualize web app for ETF and stock DCA backte
 
 ## Run Locally
 
+Install dependencies from the project root:
+
+```powershell
+npm.cmd run setup
+```
+
 From the project root:
 
 ```powershell

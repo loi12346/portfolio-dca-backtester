@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-dev.ps1",
     "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
     "dev:check": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1 -Check"
   },
