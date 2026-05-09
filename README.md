@@ -10,6 +10,16 @@ Lightweight upload -> simulate -> visualize web app for ETF and stock DCA backte
 
 ## Run Locally
 
+From the project root:
+
+```powershell
+npm.cmd run dev
+```
+
+This starts the backend on `http://127.0.0.1:8000` and the frontend on `http://localhost:3000`.
+
+You can also run each service manually.
+
 Backend:
 
 ```powershell
