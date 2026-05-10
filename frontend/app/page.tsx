@@ -55,7 +55,11 @@ type SimulationResult = {
   };
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+    ? "https://portfolio-dca-backtester.onrender.com"
+    : "http://localhost:8000");
 const palette = ["#0f766e", "#e85d4f", "#2563eb", "#c8902f", "#7c3aed", "#0f172a", "#0891b2", "#be123c"];
 
 const metricColumns = [
