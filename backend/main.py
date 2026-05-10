@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -12,9 +13,18 @@ from engine.simulation import AssetInput, PortfolioAsset, StrategyConfig, parse_
 
 app = FastAPI(title="Portfolio DCA Backtester", version="0.1.0")
 
+
+def _allowed_origins() -> list[str]:
+    configured = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    if origins:
+        return origins
+    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_allowed_origins(),
+    allow_origin_regex=os.getenv("CORS_ALLOW_ORIGIN_REGEX"),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
