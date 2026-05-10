@@ -64,17 +64,32 @@ Date,Close,Dividends
 
 Sample files are included under `sample-data`.
 
+## Multi-Scenario Comparison
+
+The app supports comparing multiple portfolio allocations under one shared DCA strategy.
+
+Example scenarios:
+
+- `VOO 100`
+- `QQQ 100`
+- `VOO 60 / QQQ 40`
+- `VOO 40 / QQQ 60`
+
+Upload one file per asset, then edit the inferred asset label if needed. Scenario allocations select from those uploaded labels.
+
 ## MVP Scope
 
 Implemented:
 
 - CSV/XLSX upload through FastAPI multipart form data
-- Portfolio allocation validation at 100%
+- Editable uploaded asset labels
+- Multi-scenario portfolio allocation validation at 100%
 - Monthly DCA with annual contribution increase
 - Next trading day execution for non-trading DCA dates
 - Optional dividend reinvestment
 - Final value, invested capital, profit, total return, CAGR, max drawdown, Sharpe, Sortino
-- Portfolio growth, drawdown, and contribution vs growth charts
+- Scenario comparison growth and drawdown charts
+- Per-scenario contribution vs growth chart
 
 Not included:
 

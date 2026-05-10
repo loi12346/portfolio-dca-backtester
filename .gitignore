@@ -16,3 +16,6 @@ out/
 # Editor
 .vscode/*
 !.vscode/tasks.json
+
+# Codex local runner
+.codex/

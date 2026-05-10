@@ -13,9 +13,14 @@ from engine.metrics import risk_metrics
 @dataclass(frozen=True)
 class AssetInput:
     symbol: str
-    weight: float
     file_bytes: bytes
     filename: str
+
+
+@dataclass(frozen=True)
+class PortfolioAsset:
+    symbol: str
+    weight: float
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,18 @@ def _read_asset_file(asset: AssetInput) -> pd.DataFrame:
     return frame[["Close", "Dividends"]]
 
 
+def parse_market_data(assets: list[AssetInput]) -> dict[str, pd.DataFrame]:
+    if not assets:
+        raise ValueError("At least one uploaded asset is required.")
+
+    labels = [asset.symbol for asset in assets]
+    duplicates = sorted({label for label in labels if labels.count(label) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate asset labels are not allowed: {', '.join(duplicates)}.")
+
+    return {asset.symbol: _read_asset_file(asset) for asset in assets}
+
+
 def _next_trading_day(target: pd.Timestamp, trading_days: pd.DatetimeIndex) -> pd.Timestamp | None:
     position = trading_days.searchsorted(target)
     if position >= len(trading_days):
@@ -100,7 +117,11 @@ def _chart_rows(frame: pd.DataFrame) -> list[dict[str, float | str]]:
     return rows
 
 
-def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
+def run_portfolio_simulation(
+    market_data: dict[str, pd.DataFrame],
+    assets: list[PortfolioAsset],
+    strategy: StrategyConfig,
+) -> dict:
     if not assets:
         raise ValueError("At least one asset is required.")
 
@@ -108,14 +129,23 @@ def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
     if abs(total_weight - 1) > 0.0001:
         raise ValueError("Portfolio weights must total 100%.")
 
+    labels = [asset.symbol for asset in assets]
+    duplicates = sorted({label for label in labels if labels.count(label) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate assets inside one scenario are not allowed: {', '.join(duplicates)}.")
+
+    missing = [asset.symbol for asset in assets if asset.symbol not in market_data]
+    if missing:
+        raise ValueError(f"Scenario uses assets that were not uploaded: {', '.join(missing)}.")
+
     start = pd.Timestamp(strategy.start_date)
     end = pd.Timestamp(strategy.end_date)
     if start >= end:
         raise ValueError("Start date must be before end date.")
 
-    market_data = {asset.symbol: _read_asset_file(asset) for asset in assets}
     common_days = None
-    for frame in market_data.values():
+    scenario_data = {asset.symbol: market_data[asset.symbol] for asset in assets}
+    for frame in scenario_data.values():
         days = frame.loc[(frame.index >= start) & (frame.index <= end)].index
         common_days = days if common_days is None else common_days.intersection(days)
 
@@ -123,7 +153,7 @@ def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
         raise ValueError("No overlapping trading dates found for the selected range.")
 
     common_days = common_days.sort_values()
-    market_data = {symbol: frame.reindex(common_days).ffill() for symbol, frame in market_data.items()}
+    scenario_data = {symbol: frame.reindex(common_days).ffill() for symbol, frame in scenario_data.items()}
     dca_events = _build_dca_events(strategy, common_days)
 
     shares = {asset.symbol: 0.0 for asset in assets}
@@ -142,22 +172,22 @@ def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
         if contribution > 0:
             invested += contribution
             for symbol, weight in weights.items():
-                close = float(market_data[symbol].at[day, "Close"])
+                close = float(scenario_data[symbol].at[day, "Close"])
                 shares[symbol] += (contribution * weight) / close
 
         for symbol in shares:
-            dividend = float(market_data[symbol].at[day, "Dividends"])
+            dividend = float(scenario_data[symbol].at[day, "Dividends"])
             cash = dividend_cash(shares[symbol], dividend)
             if cash <= 0:
                 continue
             if strategy.reinvest_dividends:
-                close = float(market_data[symbol].at[day, "Close"])
+                close = float(scenario_data[symbol].at[day, "Close"])
                 shares[symbol] += cash / close
             else:
                 pending_dividends[symbol] += cash
 
         asset_values = {
-            symbol: shares[symbol] * float(market_data[symbol].at[day, "Close"]) + pending_dividends[symbol]
+            symbol: shares[symbol] * float(scenario_data[symbol].at[day, "Close"]) + pending_dividends[symbol]
             for symbol in shares
         }
         portfolio_value = sum(asset_values.values())
@@ -194,7 +224,7 @@ def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
     metrics = risk_metrics(equity, invested, common_days[0], common_days[-1])
 
     benchmark = {}
-    for symbol, frame in market_data.items():
+    for symbol, frame in scenario_data.items():
         first = float(frame["Close"].iloc[0])
         normalized = frame["Close"] / first * strategy.monthly_contribution
         benchmark[symbol] = normalized.replace([np.inf, -np.inf], np.nan).fillna(0)
@@ -212,3 +242,9 @@ def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
             "contribution": _chart_rows(contribution_frame),
         },
     }
+
+
+def run_simulation(assets: list[AssetInput], strategy: StrategyConfig) -> dict:
+    market_data = parse_market_data(assets)
+    portfolio_assets = [PortfolioAsset(symbol=asset.symbol, weight=1 / len(assets)) for asset in assets]
+    return run_portfolio_simulation(market_data, portfolio_assets, strategy)
