@@ -79,7 +79,7 @@ After deploying the frontend, set this Render environment variable:
 CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
 ```
 
-For Vercel preview URLs during testing, you can temporarily use:
+The backend also allows `https://*.vercel.app` by default for MVP deployment. To override that behavior, set:
 
 ```text
 CORS_ALLOW_ORIGIN_REGEX=https://.*\.vercel\.app

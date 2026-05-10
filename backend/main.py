@@ -21,10 +21,15 @@ def _allowed_origins() -> list[str]:
         return origins
     return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
+
+def _allowed_origin_regex() -> str:
+    return os.getenv("CORS_ALLOW_ORIGIN_REGEX", r"https://.*\.vercel\.app")
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
-    allow_origin_regex=os.getenv("CORS_ALLOW_ORIGIN_REGEX"),
+    allow_origin_regex=_allowed_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
