@@ -73,6 +73,113 @@ const metricColumns = [
   ["sortinoRatio", "Sortino"],
 ] as const;
 
+const yahooPriceScript = `let rows = document.querySelectorAll('table tbody tr');
+
+let data = [];
+
+rows.forEach(row => {
+
+    let cols = row.querySelectorAll('td');
+
+    // historical rows usually have 7 columns
+    if (cols.length >= 6) {
+
+        let rawDate = cols[0].innerText;
+
+        let cleanDate =
+            new Date(rawDate)
+                .toISOString()
+                .split('T')[0];
+
+        // Close price column
+        let close = cols[4].innerText.replace(/,/g, '');
+
+        // skip dividend rows
+        if (close.includes('Dividend')) return;
+
+        data.push({
+            date: cleanDate,
+            close: close
+        });
+    }
+});
+
+let csv = "Date,Close\\n";
+
+data.forEach(r => {
+    csv += \`\${r.date},\${r.close}\\n\`;
+});
+
+// auto download
+const blob = new Blob([csv], {
+    type: 'text/csv'
+});
+
+const a = document.createElement('a');
+
+a.href = URL.createObjectURL(blob);
+
+a.download = 'prices.csv';
+
+a.click();
+
+console.log("Price CSV downloaded");`;
+
+const yahooDividendScript = `let rows = document.querySelectorAll('table tbody tr');
+
+let data = [];
+
+rows.forEach(row => {
+
+    let cols = row.querySelectorAll('td');
+
+    if (cols.length >= 2) {
+
+        let rawDate = cols[0].innerText;
+
+        // convert to ISO format
+        let cleanDate =
+            new Date(rawDate)
+                .toISOString()
+                .split('T')[0];
+
+        let rawDividend = cols[1].innerText;
+
+        // remove " Dividend"
+        let cleanDividend =
+            rawDividend.replace(' Dividend', '');
+
+        // skip invalid rows
+        if (cleanDividend.includes('Stock Split')) return;
+
+        data.push({
+            date: cleanDate,
+            dividend: cleanDividend
+        });
+    }
+});
+
+let csv = "Date,Dividends\\n";
+
+data.forEach(r => {
+    csv += \`\${r.date},\${r.dividend}\\n\`;
+});
+
+// auto download
+const blob = new Blob([csv], {
+    type: 'text/csv'
+});
+
+const a = document.createElement('a');
+
+a.href = URL.createObjectURL(blob);
+
+a.download = 'dividends.csv';
+
+a.click();
+
+console.log("Dividend CSV downloaded");`;
+
 export default function Home() {
   const [assets, setAssets] = useState<UploadedAsset[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -335,6 +442,8 @@ export default function Home() {
               ]} />
             </Panel>
 
+            <DataGuide />
+
             <Panel title="Portfolio Scenarios" icon={<BarChart3 className="h-5 w-5" />}>
               <div className="space-y-4">
                 {scenarios.map((scenario) => {
@@ -537,6 +646,51 @@ function ChartPanel({ title, children }: { title: string; children: ReactNode })
       <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function DataGuide() {
+  return (
+    <Panel title="Yahoo Finance Data Guide" icon={<FileUp className="h-5 w-5" />}>
+      <div className="space-y-4 text-sm text-slate-600">
+        <p>
+          Use Yahoo Finance historical pages to export one asset at a time. Open the asset history table, set the date
+          range, then paste one of these snippets into the browser console.
+        </p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>Run the price script on the Historical Data table to download `prices.csv`.</li>
+          <li>Run the dividend script on the Dividends page/table to download `dividends.csv`.</li>
+          <li>Upload the price CSV here. If needed, merge dividends into the same file as `Date,Close,Dividends`.</li>
+        </ol>
+        <CodeSnippet title="Price CSV Script" code={yahooPriceScript} />
+        <CodeSnippet title="Dividend CSV Script" code={yahooDividendScript} />
+      </div>
+    </Panel>
+  );
+}
+
+function CodeSnippet({ title, code }: { title: string; code: string }) {
+  async function copyCode() {
+    await navigator.clipboard.writeText(code);
+  }
+
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-mist px-3 py-2">
+        <span className="font-semibold text-ink">{title}</span>
+        <button
+          onClick={copyCode}
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-300 bg-white px-2 font-medium text-reef hover:bg-slate-50"
+          title={`Copy ${title}`}
+        >
+          <Copy className="h-4 w-4" />
+          Copy
+        </button>
+      </div>
+      <pre className="max-h-72 overflow-auto bg-slate-950 p-3 text-xs leading-5 text-slate-100">
+        <code>{code}</code>
+      </pre>
+    </div>
   );
 }
 
