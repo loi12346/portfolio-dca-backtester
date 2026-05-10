@@ -181,6 +181,7 @@ a.click();
 console.log("Dividend CSV downloaded");`;
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<"backtest" | "guide">("backtest");
   const [assets, setAssets] = useState<UploadedAsset[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [strategy, setStrategy] = useState<Strategy>({
@@ -403,7 +404,22 @@ export default function Home() {
           </button>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[430px_minmax(0,1fr)]">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab("backtest")}
+            className={tabClass(activeTab === "backtest")}
+          >
+            Backtest
+          </button>
+          <button
+            onClick={() => setActiveTab("guide")}
+            className={tabClass(activeTab === "guide")}
+          >
+            Data Guide
+          </button>
+        </div>
+
+        {activeTab === "guide" ? <DataGuide /> : <section className="grid gap-5 lg:grid-cols-[430px_minmax(0,1fr)]">
           <div className="flex flex-col gap-5">
             <Panel title="Upload & Label Assets" icon={<FileUp className="h-5 w-5" />}>
               <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-white px-4 py-6 text-center transition hover:border-reef">
@@ -441,8 +457,6 @@ export default function Home() {
                 duplicateAssetLabels.length ? `Duplicate labels: ${duplicateAssetLabels.join(", ")}` : "",
               ]} />
             </Panel>
-
-            <DataGuide />
 
             <Panel title="Portfolio Scenarios" icon={<BarChart3 className="h-5 w-5" />}>
               <div className="space-y-4">
@@ -622,7 +636,7 @@ export default function Home() {
               </ResponsiveContainer>
             </ChartPanel>
           </section>
-        </section>
+        </section>}
       </div>
     </main>
   );
@@ -652,18 +666,47 @@ function ChartPanel({ title, children }: { title: string; children: ReactNode })
 function DataGuide() {
   return (
     <Panel title="Yahoo Finance Data Guide" icon={<FileUp className="h-5 w-5" />}>
-      <div className="space-y-4 text-sm text-slate-600">
-        <p>
-          Use Yahoo Finance historical pages to export one asset at a time. Open the asset history table, set the date
-          range, then paste one of these snippets into the browser console.
-        </p>
-        <ol className="list-decimal space-y-1 pl-5">
-          <li>Run the price script on the Historical Data table to download `prices.csv`.</li>
-          <li>Run the dividend script on the Dividends page/table to download `dividends.csv`.</li>
-          <li>Upload the price CSV here. If needed, merge dividends into the same file as `Date,Close,Dividends`.</li>
-        </ol>
-        <CodeSnippet title="Price CSV Script" code={yahooPriceScript} />
-        <CodeSnippet title="Dividend CSV Script" code={yahooDividendScript} />
+      <div className="grid gap-5 text-sm text-slate-600 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="space-y-4">
+          <p>
+            Use Yahoo Finance to export one asset at a time. Price rows and dividend rows are separate on Yahoo, so export
+            both when you want dividend reinvestment.
+          </p>
+          <div>
+            <h3 className="mb-2 font-semibold text-ink">Price data</h3>
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>Open Yahoo Finance and search the ticker, for example `VOO` or `QQQ`.</li>
+              <li>Open the `Historical Data` page.</li>
+              <li>Choose the date range you want to backtest.</li>
+              <li>Set the view/filter to historical prices, then apply the date range.</li>
+              <li>Scroll to the bottom of the table so Yahoo loads all visible rows for that range.</li>
+              <li>Open browser dev tools, go to `Console`, paste the price script, and press Enter.</li>
+              <li>The browser downloads `prices.csv` with `Date,Close` columns.</li>
+            </ol>
+          </div>
+          <div>
+            <h3 className="mb-2 font-semibold text-ink">Dividend data</h3>
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>On the same Yahoo Finance historical page, switch the event/filter to dividends.</li>
+              <li>Use the same date range as the price export.</li>
+              <li>Scroll to the bottom again so all dividend rows load.</li>
+              <li>Paste the dividend script into the browser console and press Enter.</li>
+              <li>The browser downloads `dividends.csv` with `Date,Dividends` columns.</li>
+            </ol>
+          </div>
+          <div>
+            <h3 className="mb-2 font-semibold text-ink">Merge before upload</h3>
+            <p>
+              This app accepts one file per asset. Use the price CSV as the main file, then add a `Dividends` column by
+              matching dividend rows back into prices with `VLOOKUP` or `XLOOKUP` on `Date`. Missing dividend dates should
+              be blank or `0`. The final file should look like `Date,Close,Dividends`.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <CodeSnippet title="Price CSV Script" code={yahooPriceScript} />
+          <CodeSnippet title="Dividend CSV Script" code={yahooDividendScript} />
+        </div>
       </div>
     </Panel>
   );
@@ -692,6 +735,15 @@ function CodeSnippet({ title, code }: { title: string; code: string }) {
       </pre>
     </div>
   );
+}
+
+function tabClass(isActive: boolean) {
+  return [
+    "h-10 rounded-md border px-4 text-sm font-semibold transition",
+    isActive
+      ? "border-reef bg-reef text-white shadow-sm"
+      : "border-slate-300 bg-white text-slate-700 hover:border-reef hover:text-reef",
+  ].join(" ");
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
