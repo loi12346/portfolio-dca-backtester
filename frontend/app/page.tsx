@@ -87,14 +87,12 @@ export default function Home() {
 
   const assetLabels = assets.map((asset) => asset.label.trim().toUpperCase()).filter(Boolean);
   const duplicateAssetLabels = sortedDuplicates(assetLabels);
-  const duplicateFileNames = sortedDuplicates(assets.map((asset) => asset.file.name));
   const invalidScenarioMessages = useMemo(() => validateScenarios(scenarios, assetLabels), [scenarios, assetLabels]);
   const dateIsInvalid = strategy.startDate >= strategy.endDate;
   const canRun =
     assets.length > 0 &&
     scenarios.length > 0 &&
     duplicateAssetLabels.length === 0 &&
-    duplicateFileNames.length === 0 &&
     invalidScenarioMessages.length === 0 &&
     !dateIsInvalid;
 
@@ -105,22 +103,35 @@ export default function Home() {
 
   function onFilesSelected(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
-    const uploadedAssets = selected.map((file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}`,
-      file,
-      label: inferLabel(file.name),
-    }));
-    setAssets(uploadedAssets);
+    const mergedAssets = [...assets];
+    selected.forEach((file) => {
+      const existingIndex = mergedAssets.findIndex((asset) => asset.file.name === file.name);
+      if (existingIndex >= 0) {
+        mergedAssets[existingIndex] = {
+          ...mergedAssets[existingIndex],
+          file,
+        };
+        return;
+      }
+      mergedAssets.push({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        file,
+        label: inferUniqueLabel(inferLabel(file.name), mergedAssets.map((asset) => asset.label)),
+      });
+    });
+
+    setAssets(mergedAssets);
     setResult(null);
     setError("");
+    event.target.value = "";
 
-    if (uploadedAssets.length > 0) {
-      const first = uploadedAssets[0].label;
-      const second = uploadedAssets[1]?.label;
+    if (selected.length > 0) {
       setScenarios((current) => {
         if (current.length > 0) {
           return current;
         }
+        const first = mergedAssets[0]?.label ?? "";
+        const second = mergedAssets[1]?.label;
         const defaults: Scenario[] = [
           {
             id: crypto.randomUUID(),
@@ -145,24 +156,32 @@ export default function Home() {
         }
         return defaults;
       });
-    } else {
-      setScenarios([]);
     }
   }
 
   function updateAssetLabel(id: string, label: string) {
     const normalized = label.toUpperCase();
+    const previousLabel = assets.find((asset) => asset.id === id)?.label;
     setAssets((current) =>
       current.map((asset) => (asset.id === id ? { ...asset, label: normalized } : asset)),
     );
+    if (!previousLabel) {
+      return;
+    }
     setScenarios((current) =>
       current.map((scenario) => ({
         ...scenario,
         allocations: scenario.allocations.map((allocation) =>
-          allocation.asset === assets.find((asset) => asset.id === id)?.label ? { ...allocation, asset: normalized } : allocation,
+          allocation.asset === previousLabel ? { ...allocation, asset: normalized } : allocation,
         ),
       })),
     );
+  }
+
+  function removeAsset(id: string) {
+    setAssets((current) => current.filter((asset) => asset.id !== id));
+    setResult(null);
+    setError("");
   }
 
   function addScenario() {
@@ -285,7 +304,7 @@ export default function Home() {
               {assets.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {assets.map((asset) => (
-                    <div key={asset.id} className="grid grid-cols-[1fr_120px] gap-2 rounded-md bg-mist px-3 py-2 text-sm">
+                    <div key={asset.id} className="grid grid-cols-[1fr_120px_36px] gap-2 rounded-md bg-mist px-3 py-2 text-sm">
                       <div className="min-w-0">
                         <div className="truncate font-medium">{asset.file.name}</div>
                         <div className="text-slate-500">{Math.round(asset.file.size / 1024)} KB</div>
@@ -296,13 +315,19 @@ export default function Home() {
                         className="h-10 rounded-md border border-slate-300 px-3 font-semibold outline-none focus:border-reef"
                         aria-label={`Label for ${asset.file.name}`}
                       />
+                      <button
+                        onClick={() => removeAsset(asset.id)}
+                        className="flex h-10 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100"
+                        title="Remove uploaded asset"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
               <ValidationMessage messages={[
                 duplicateAssetLabels.length ? `Duplicate labels: ${duplicateAssetLabels.join(", ")}` : "",
-                duplicateFileNames.length ? `Duplicate filenames: ${duplicateFileNames.join(", ")}` : "",
               ]} />
             </Panel>
 
@@ -601,6 +626,18 @@ function inferLabel(fileName: string) {
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .toUpperCase();
+}
+
+function inferUniqueLabel(baseLabel: string, existingLabels: string[]) {
+  const existing = new Set(existingLabels.map((label) => label.trim().toUpperCase()));
+  if (!existing.has(baseLabel)) {
+    return baseLabel;
+  }
+  let index = 2;
+  while (existing.has(`${baseLabel}_${index}`)) {
+    index += 1;
+  }
+  return `${baseLabel}_${index}`;
 }
 
 function sortedDuplicates(values: string[]) {
